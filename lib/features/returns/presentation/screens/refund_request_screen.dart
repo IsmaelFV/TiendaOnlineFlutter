@@ -537,9 +537,10 @@ class _RefundRequestScreenState extends ConsumerState<RefundRequestScreen> {
         body: {
           'action': 'request',
           'orderId': order.id,
-          'reason': description.isEmpty
-              ? (_reasonOptions[reason] ?? reason)
-              : description,
+          'reason': reason,
+          'description': description.isNotEmpty
+              ? description
+              : (_reasonOptions[reason] ?? reason),
           'items': selectedItems,
           'refundAmount': totalRefund,
         },

@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
     // 3. SOLICITUD DE DEVOLUCIÓN (USUARIO)
     // ════════════════════════════════════════════════════════════
     if (action === 'request') {
-      const { orderId, reason, items, refundAmount } = body
+      const { orderId, reason, description, items, refundAmount } = body
 
       if (!orderId) return json({ error: 'orderId requerido' }, 400)
       if (!reason) return json({ error: 'Motivo requerido' }, 400)
@@ -154,19 +154,16 @@ Deno.serve(async (req: Request) => {
       const { data: newReturn, error: insertErr } = await supabaseAdmin
         .from('returns')
         .insert({
-          return_number: returnNumber,
           order_id: orderId,
-          user_id: user.id,
           status: 'pending',
           reason: reason,
+          description: description || null,
           items: returnItems,
           refund_amount: totalRefund,
-          customer_email: order.customer_email,
+          customer_email: order.customer_email || user.email || '',
           type: 'return',
           requested_at: now,
           return_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          created_at: now,
-          updated_at: now,
         })
         .select()
         .single()
@@ -192,7 +189,6 @@ Deno.serve(async (req: Request) => {
         status: 'requested',
         message: 'Solicitud de devolución creada correctamente',
         returnId: newReturn.id,
-        returnNumber,
       })
     }
 
@@ -245,8 +241,6 @@ Deno.serve(async (req: Request) => {
         .from('returns')
         .update({
           status: 'approved',
-          admin_notes: adminNotes || null,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', returnId)
 
@@ -268,8 +262,6 @@ Deno.serve(async (req: Request) => {
         .from('returns')
         .update({
           status: 'rejected',
-          admin_notes: adminNotes || null,
-          updated_at: new Date().toISOString(),
         })
         .eq('id', returnId)
 
@@ -351,9 +343,7 @@ Deno.serve(async (req: Request) => {
       await supabaseAdmin
         .from('returns')
         .update({
-          status: 'completed',
-          admin_notes: adminNotes || ret.admin_notes || null,
-          updated_at: new Date().toISOString(),
+          status: 'refunded',
         })
         .eq('id', returnId)
 

@@ -13,18 +13,14 @@ import '../../../../shared/extensions/number_extensions.dart';
 class ReturnModel {
   final String id;
   final String orderId;
-  final String? returnNumber;
-  final String? userId;
   final String type; // 'cancellation' o 'return'
   final String reason;
   final String? description;
-  final String
-  status; // pending, approved, rejected, completed, received, refunded, cancelled, expired
+  final String status; // pending, approved, rejected, received, refunded
   final double refundAmount;
   final String? customerEmail;
-  final String? adminNotes;
-  final String? createdAt;
-  final String? updatedAt;
+  final String? requestedAt;
+  final String? returnDeadline;
   final String? orderNumber;
   // Items JSON almacenados en la columna 'items'
   final List<Map<String, dynamic>> refundItems;
@@ -32,17 +28,14 @@ class ReturnModel {
   ReturnModel({
     required this.id,
     required this.orderId,
-    this.returnNumber,
-    this.userId,
     this.type = 'return',
     required this.reason,
     this.description,
     required this.status,
     this.refundAmount = 0,
     this.customerEmail,
-    this.adminNotes,
-    this.createdAt,
-    this.updatedAt,
+    this.requestedAt,
+    this.returnDeadline,
     this.orderNumber,
     this.refundItems = const [],
   });
@@ -58,17 +51,14 @@ class ReturnModel {
     return ReturnModel(
       id: json['id'] as String,
       orderId: json['order_id'] as String,
-      returnNumber: json['return_number'] as String?,
-      userId: json['user_id'] as String?,
       type: json['type'] as String? ?? 'return',
       reason: json['reason'] as String? ?? '',
       description: json['description'] as String?,
       status: json['status'] as String? ?? 'pending',
       refundAmount: (json['refund_amount'] as num?)?.toDouble() ?? 0,
       customerEmail: json['customer_email'] as String?,
-      adminNotes: json['admin_notes'] as String?,
-      createdAt: json['created_at'] as String?,
-      updatedAt: json['updated_at'] as String?,
+      requestedAt: json['requested_at'] as String?,
+      returnDeadline: json['return_deadline'] as String?,
       orderNumber:
           (json['orders'] as Map<String, dynamic>?)?['order_number'] as String?,
       refundItems: items,
@@ -79,14 +69,14 @@ class ReturnModel {
 /// Provider de devoluciones del usuario
 final returnsProvider = FutureProvider<List<ReturnModel>>((ref) async {
   final client = Supabase.instance.client;
-  final userId = client.auth.currentUser?.id;
-  if (userId == null) return [];
+  final email = client.auth.currentUser?.email;
+  if (email == null) return [];
 
   final response = await client
       .from('returns')
       .select('*, orders(order_number)')
-      .eq('user_id', userId)
-      .order('created_at', ascending: false);
+      .eq('customer_email', email)
+      .order('requested_at', ascending: false);
 
   return (response as List)
       .map((json) => ReturnModel.fromJson(json as Map<String, dynamic>))
@@ -98,7 +88,7 @@ final allReturnsProvider = FutureProvider<List<ReturnModel>>((ref) async {
   final response = await Supabase.instance.client
       .from('returns')
       .select('*, orders(order_number)')
-      .order('created_at', ascending: false);
+      .order('requested_at', ascending: false);
 
   return (response as List)
       .map((json) => ReturnModel.fromJson(json as Map<String, dynamic>))
@@ -169,9 +159,7 @@ class ReturnsScreen extends ConsumerWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            ret.returnNumber ??
-                                ret.orderNumber ??
-                                ret.orderId.substring(0, 8),
+                            ret.orderNumber ?? ret.orderId.substring(0, 8),
                             style: AppTextStyles.body.copyWith(
                               fontWeight: FontWeight.w600,
                             ),
@@ -276,7 +264,7 @@ class ReturnsScreen extends ConsumerWidget {
                               fontWeight: FontWeight.w700,
                               color:
                                   ret.status == 'approved' ||
-                                      ret.status == 'completed'
+                                      ret.status == 'refunded'
                                   ? AppColors.success
                                   : AppColors.gold500,
                             ),
@@ -284,49 +272,10 @@ class ReturnsScreen extends ConsumerWidget {
                         ],
                       ),
                     ],
-                    if (ret.adminNotes != null &&
-                        ret.adminNotes!.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: ret.status == 'rejected'
-                              ? AppColors.error.withValues(alpha: 0.1)
-                              : AppColors.surface,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Icon(
-                              ret.status == 'rejected'
-                                  ? Icons.info_outline
-                                  : Icons.chat_bubble_outline,
-                              color: ret.status == 'rejected'
-                                  ? AppColors.error
-                                  : AppColors.textMuted,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                ret.adminNotes!,
-                                style: AppTextStyles.caption.copyWith(
-                                  color: ret.status == 'rejected'
-                                      ? AppColors.error
-                                      : AppColors.textMuted,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    if (ret.createdAt != null) ...[
+                    if (ret.requestedAt != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        DateTime.tryParse(ret.createdAt!)?.fullDate ?? '',
+                        DateTime.tryParse(ret.requestedAt!)?.fullDate ?? '',
                         style: AppTextStyles.caption.copyWith(
                           color: AppColors.textMuted,
                         ),

@@ -177,15 +177,15 @@ Deno.serve(async (req: Request) => {
     // 7. CREAR REGISTRO EN RETURNS (para historial)
     // ════════════════════════════════════════════════════════════
     try {
-      const totalCents = Math.round((order.total || 0) * 100)
       await supabaseAdmin.from('returns').insert({
         order_id: orderId,
-        user_id: user.id,
         type: 'cancellation',
-        reason: 'Cancelación solicitada por el cliente',
-        status: 'completed',
+        reason: 'changed_mind',
+        description: 'Cancelación solicitada por el cliente',
+        status: 'refunded',
         refund_amount: order.total || 0,
         customer_email: order.customer_email || user.email || '',
+        requested_at: new Date().toISOString(),
         items: orderItems.map((oi: any) => ({
           product_id: oi.product_id,
           product_name: oi.product_name,

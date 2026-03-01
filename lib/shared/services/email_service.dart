@@ -11,8 +11,8 @@ import 'invoice_pdf_service.dart';
 /// Llama directamente a la API REST de Brevo desde Flutter.
 /// No necesita Edge Functions, CLI ni despliegues adicionales.
 class EmailService {
-  // TODO: Reemplazar con tu API key de Brevo
-  static const _apiKey = 'TU_BREVO_API_KEY_AQUI';
+  static const _apiKey =
+      'YOUR_BREVO_API_KEY_HERE';
   static const _fromEmail = 'ismaelfloresvargas22@gmail.com';
   static const _fromName = 'Fashion Store';
   static const _apiUrl = 'https://api.brevo.com/v3/smtp/email';

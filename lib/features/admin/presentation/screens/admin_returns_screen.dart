@@ -490,7 +490,7 @@ class _AdminReturnsScreenState extends ConsumerState<AdminReturnsScreen>
                     ),
                   ],
 
-                  if (ret.createdAt != null) ...[
+                  if (ret.requestedAt != null) ...[
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -501,7 +501,7 @@ class _AdminReturnsScreenState extends ConsumerState<AdminReturnsScreen>
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          DateTime.tryParse(ret.createdAt!)?.fullDate ?? '',
+                          DateTime.tryParse(ret.requestedAt!)?.fullDate ?? '',
                           style: TextStyle(
                             color: AppColors.textMuted.withValues(alpha: 0.6),
                             fontSize: 11,
@@ -664,13 +664,7 @@ class _AdminReturnsScreenState extends ConsumerState<AdminReturnsScreen>
     String status, {
     String? adminNotes,
   }) async {
-    final data = <String, dynamic>{
-      'status': status,
-      'updated_at': DateTime.now().toIso8601String(),
-    };
-    if (adminNotes != null && adminNotes.isNotEmpty) {
-      data['admin_notes'] = adminNotes;
-    }
+    final data = <String, dynamic>{'status': status};
     await Supabase.instance.client
         .from('returns')
         .update(data)

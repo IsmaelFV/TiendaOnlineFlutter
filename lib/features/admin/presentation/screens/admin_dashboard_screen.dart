@@ -41,7 +41,7 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
       .where((o) => o['status'] != 'cancelled' && o['status'] != 'refunded')
       .fold<double>(
         0,
-        (sum, o) => sum + ((o['total'] as num?)?.toDouble() ?? 0),
+        (sum, o) => sum + ((o['total'] as num?)?.toDouble() ?? 0) / 100,
       );
 
   final pendingOrders = orders.where((o) => o['status'] == 'pending').length;
@@ -90,13 +90,14 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
     if (createdAt != null && now.difference(createdAt).inDays < 7) {
       final key = '${createdAt.day}/${createdAt.month}';
       salesByDay[key] =
-          (salesByDay[key] ?? 0) + ((order['total'] as num?)?.toDouble() ?? 0);
+          (salesByDay[key] ?? 0) +
+          ((order['total'] as num?)?.toDouble() ?? 0) / 100;
       ordersByDay[key] = (ordersByDay[key] ?? 0) + 1;
 
       if (createdAt.day == now.day &&
           createdAt.month == now.month &&
           createdAt.year == now.year) {
-        todayRevenue += (order['total'] as num?)?.toDouble() ?? 0;
+        todayRevenue += ((order['total'] as num?)?.toDouble() ?? 0) / 100;
         todayOrders++;
       }
     }
@@ -113,7 +114,7 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
     for (final it in rawItems) {
       final pid = it['product_id'] as String? ?? '';
       final qty = (it['quantity'] as num?)?.toInt() ?? 0;
-      final price = (it['price'] as num?)?.toDouble() ?? 0;
+      final price = ((it['price'] as num?)?.toDouble() ?? 0) / 100;
       if (aggMap.containsKey(pid)) {
         aggMap[pid]!['revenue'] =
             (aggMap[pid]!['revenue'] as double) + price * qty;
