@@ -1,0 +1,1033 @@
+﻿================================================================================
+  FICHA TÉCNICA — FASHION STORE
+  APLICACIÓN ANDROID NATIVA (Flutter)
+================================================================================
+  Fecha de documentación:  Julio 2025
+  Plataforma objetivo:     ANDROID (APK / AAB)
+  Framework:               Flutter 3.38.3 / Dart 3.10.1
+  Backend:                 Supabase (Cloud) + Edge Functions (Deno)
+  Pagos:                   Stripe (modo test — Payment Sheet nativo)
+  Emails:                  Brevo (Sendinblue) — Edge Functions + cliente Dart
+  Objetivo:                App Android nativa e-commerce moda premium
+================================================================================
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     1. DESCRIPCIÓN DEL PROYECTO                             ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Fashion Store es una aplicación de comercio electrónico de moda
+  desarrollada íntegramente en Flutter para la plataforma Android.
+
+  Se trata de una app con interfaz única que adapta su contenido según
+  el rol del usuario: CLIENTE FINAL (navegación, compra, devoluciones)
+  o ADMINISTRADOR (gestión de productos, pedidos, cupones, devoluciones
+  y ofertas flash).
+
+  Características principales:
+    • Catálogo de productos con filtros por categoría y género
+    • Carrito de compra persistente (almacenamiento local con Hive)
+    • Checkout con Stripe Payment Sheet nativo
+    • Sistema de pedidos con seguimiento de estado
+    • Solicitud y gestión de devoluciones/reembolsos
+    • Lista de favoritos (Wishlist)
+    • Panel de administración completo
+    • Ofertas flash en tiempo real (Supabase Realtime)
+    • Notificaciones por email (confirmación de pedido, facturas PDF)
+    • Tema oscuro premium con tipografías Playfair Display + Lato
+
+  La aplicación consta de 94 archivos Dart, 30 pantallas, 7 Edge
+  Functions desplegadas en Supabase y se comunica con 3 APIs externas
+  (Supabase, Stripe y Brevo).
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     2. ARQUITECTURA DEL PROYECTO                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ─── 2.1. PATRÓN ARQUITECTÓNICO ─────────────────────────────────────────
+
+  Se sigue una arquitectura Clean Architecture por Features:
+
+    lib/
+    ├── app/                          # MaterialApp, temas, router
+    │   ├── app.dart                  # FashionStoreApp (widget raíz)
+    │   ├── router.dart               # GoRouter — 30+ rutas definidas
+    │   └── theme.dart                # ThemeData oscuro premium
+    ├── features/                     # Módulos por funcionalidad
+    │   ├── admin/                    # Panel de administración
+    │   │   ├── data/                 #   Repositorios de datos admin
+    │   │   └── presentation/
+    │   │       ├── screens/          #   7 pantallas admin
+    │   │       └── widgets/          #   Widgets reutilizables admin
+    │   ├── auth/                     # Autenticación
+    │   │   ├── data/                 #   AuthRepository (Supabase Auth)
+    │   │   └── presentation/
+    │   │       ├── providers/        #   authStateProvider, isAdminProvider
+    │   │       └── screens/          #   Login, Register
+    │   ├── cart/                     # Carrito de compra
+    │   │   ├── data/                 #   CartRepository (Hive local)
+    │   │   └── presentation/
+    │   │       ├── providers/        #   CartNotifier (Riverpod)
+    │   │       └── screens/          #   CartScreen
+    │   ├── categories/               # Categorías de productos
+    │   │   ├── data/                 #   CategoryRepository
+    │   │   └── presentation/         #   CategoryExplorerScreen
+    │   ├── checkout/                 # Proceso de pago
+    │   │   ├── data/                 #   CheckoutRepository, CouponRepository
+    │   │   └── presentation/         #   CheckoutScreen, CheckoutSuccessScreen
+    │   ├── contact/                  # Formulario de contacto
+    │   ├── home/                     # Pantalla principal
+    │   │   └── presentation/         #   HomeScreen, banners, secciones
+    │   ├── orders/                   # Pedidos del usuario
+    │   │   ├── data/                 #   OrderRepository
+    │   │   └── presentation/         #   OrdersScreen, OrderDetailScreen
+    │   ├── products/                 # Catálogo de productos
+    │   │   ├── data/                 #   ProductRepository
+    │   │   └── presentation/         #   ProductListScreen, ProductDetailScreen
+    │   ├── returns/                  # Devoluciones
+    │   │   ├── data/                 #   ReturnRepository
+    │   │   └── presentation/         #   RefundRequestScreen, ReturnsScreen
+    │   ├── search/                   # Búsqueda de productos
+    │   │   └── presentation/         #   SearchScreen
+    │   ├── settings/                 # Páginas estáticas, perfil
+    │   │   └── presentation/         #   ProfileScreen, SecurityScreen, FAQ...
+    │   └── wishlist/                 # Lista de favoritos
+    │       ├── data/                 #   WishlistRepository
+    │       └── presentation/         #   FavoritesScreen
+    ├── shared/                       # Código compartido
+    │   ├── config/                   #   constants.dart (URLs, claves API)
+    │   ├── models/                   #   Freezed models + .g.dart generados
+    │   ├── providers/                #   supabaseProvider
+    │   ├── services/                 #   ApiClient, BrevoDartClient, SupabaseService
+    │   └── widgets/                  #   Widgets genéricos reutilizables
+    └── main.dart                     # Punto de entrada — inicialización
+
+
+  ─── 2.2. STACK TECNOLÓGICO ─────────────────────────────────────────────
+
+  ┌─────────────────────────┬──────────────────────────────────────────────┐
+  │ COMPONENTE              │ TECNOLOGÍA                                   │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ Framework               │ Flutter 3.38.3 / Dart 3.10.1                │
+  │ Plataforma              │ Android (solo)                               │
+  │ Backend as a Service    │ Supabase (Cloud)                             │
+  │ Auth                    │ Supabase Auth + Google OAuth                 │
+  │ Database                │ PostgreSQL (Supabase)                        │
+  │ Realtime                │ Supabase Realtime (ofertas flash)            │
+  │ Storage                 │ Supabase Storage (bucket products-images)    │
+  │ Edge Functions          │ Supabase Edge Functions (Deno/TypeScript)    │
+  │ Estado                  │ Riverpod (flutter_riverpod)                  │
+  │ Inmutabilidad           │ Freezed + json_serializable                  │
+  │ Enrutamiento            │ GoRouter (deep links + guards)               │
+  │ Manejo de errores       │ Either<Failure, T> con fpdart               │
+  │ HTTP Client             │ dio (ApiClient wrapper)                      │
+  │ Pagos                   │ Stripe (flutter_stripe — Payment Sheet)      │
+  │ Emails transaccionales  │ Brevo (Edge Function + Dart client + PDF)    │
+  │ Persistencia local      │ Hive (carrito), SharedPreferences            │
+  │ Generación de PDF       │ pdf + printing (facturas)                    │
+  │ Gráficos                │ fl_chart (dashboard admin)                   │
+  │ Iconos del app          │ flutter_launcher_icons (adaptativo)          │
+  └─────────────────────────┴──────────────────────────────────────────────┘
+
+
+  ─── 2.3. DECISIONES ARQUITECTÓNICAS CLAVE ──────────────────────────────
+
+  1. PRECIOS EN EUROS
+     Los productos se almacenan como double en euros (ej: 44.99).
+     La conversión a céntimos para Stripe se hace en la Edge Function
+     create-payment-intent (server-side).
+
+  2. BYPASS DE RLS (Row Level Security)
+     Todas las operaciones de escritura del administrador se ejecutan
+     a través de Edge Functions con service_role key, evitando las
+     restricciones RLS de Supabase para operaciones privilegiadas.
+
+  3. VERIFICACIÓN DE ADMIN
+     Se usa la tabla admin_users (campo user_id) para verificar si un
+     usuario es administrador, NO un campo role en la tabla profiles.
+
+  4. CARRITO LOCAL (Hive)
+     El carrito se persiste localmente con Hive en vez de en la base de
+     datos remota, permitiendo uso offline y respuesta instantánea.
+
+  5. VALIDACIÓN DE STOCK POR TALLA
+     Los productos usan stock_by_size (Map<String, int>) para control
+     granular de inventario por talla. Se valida stock disponible tanto
+     al añadir al carrito como en el checkout.
+
+  6. VENTANA DE CANCELACIÓN
+     Los pedidos pueden cancelarse dentro de las primeras 2 horas
+     tras su creación. Pasado ese tiempo se bloquea la cancelación.
+
+  7. PLAZO DE DEVOLUCIONES
+     Se permiten solicitudes de devolución hasta 14 días después del
+     pedido.
+
+  8. TEMA OSCURO PREMIUM
+     Toda la app usa un tema oscuro personalizado con fondo #0A0A0A,
+     tipografía Playfair Display (headings) + Lato (body), y
+     acentos en color dorado/ámbar.
+
+  9. ICONO ADAPTATIVO
+     El icono de la app se genera con flutter_launcher_icons, usando
+     fondo #0A0A0A e icono personalizado para Android 8+ (adaptive).
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     3. DEPENDENCIAS DEL PROYECTO                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ─── 3.1. DEPENDENCIAS PRINCIPALES (pubspec.yaml) ───────────────────────
+
+  ┌──────────────────────────────┬──────────┬──────────────────────────────┐
+  │ PAQUETE                      │ VERSIÓN  │ PROPÓSITO                    │
+  ├──────────────────────────────┼──────────┼──────────────────────────────┤
+  │ flutter_riverpod             │ ^2.6.1   │ Gestión de estado reactivo   │
+  │ riverpod_annotation          │ ^2.6.1   │ Generación de providers      │
+  │ supabase_flutter             │ ^2.9.0   │ Cliente Supabase completo    │
+  │ flutter_stripe               │ ^11.4.0  │ Pagos nativos (Payment Sheet)│
+  │ go_router                    │ ^14.8.1  │ Enrutamiento declarativo     │
+  │ dio                          │ ^5.7.0   │ Cliente HTTP para ApiClient  │
+  │ freezed_annotation           │ ^3.0.0   │ Modelos inmutables           │
+  │ json_annotation              │ ^4.9.0   │ Serialización JSON           │
+  │ fpdart                       │ ^1.1.1   │ Programación funcional Either│
+  │ hive_flutter                 │ ^1.1.0   │ Almacenamiento local carrito │
+  │ hive                         │ ^2.2.3   │ Base de datos clave-valor    │
+  │ shared_preferences           │ ^2.5.3   │ Preferencias simples local   │
+  │ cached_network_image         │ ^3.4.1   │ Caché de imágenes remotas    │
+  │ flutter_cache_manager        │ ^3.4.1   │ Gestión de caché de archivos │
+  │ image_picker                 │ ^1.1.2   │ Cámara y galería             │
+  │ flutter_image_compress       │ ^2.3.0   │ Comprensión imágenes subida  │
+  │ pdf                          │ ^3.11.5  │ Generación de PDF (facturas) │
+  │ printing                     │ ^5.14.2  │ Impresión/compartir PDFs     │
+  │ fl_chart                     │ ^1.0.0   │ Gráficos dashboard admin     │
+  │ smooth_page_indicator        │ ^1.2.0+3 │ Indicador carruseles         │
+  │ shimmer                      │ ^3.0.0   │ Shimmer loading placeholders │
+  │ flutter_animate              │ ^4.5.2   │ Animaciones declarativas     │
+  │ google_fonts                 │ ^6.2.1   │ Tipografías Playfair + Lato  │
+  │ url_launcher                 │ ^6.3.1   │ Abrir URLs externas          │
+  │ intl                         │ ^0.20.2  │ Formateo fechas y monedas    │
+  │ path_provider                │ ^2.1.6   │ Rutas del sistema archivos   │
+  │ uuid                         │ ^4.5.1   │ Generación IDs únicos        │
+  │ connectivity_plus            │ ^6.1.4   │ Detección conectividad red   │
+  │ carousel_slider              │ ^5.0.0   │ Carrusel home e imágenes     │
+  └──────────────────────────────┴──────────┴──────────────────────────────┘
+
+
+  ─── 3.2. DEPENDENCIAS DE DESARROLLO ────────────────────────────────────
+
+  ┌──────────────────────────────┬──────────┬──────────────────────────────┐
+  │ PAQUETE                      │ VERSIÓN  │ PROPÓSITO                    │
+  ├──────────────────────────────┼──────────┼──────────────────────────────┤
+  │ build_runner                 │ ^2.4.15  │ Generación de código         │
+  │ freezed                      │ ^3.0.6   │ Generador modelos Freezed    │
+  │ json_serializable            │ ^6.9.5   │ Generador JSON serializers   │
+  │ riverpod_generator           │ ^2.6.5   │ Generador de providers       │
+  │ flutter_launcher_icons       │ ^0.14.4  │ Generador iconos adaptativos │
+  │ flutter_lints                │ ^5.0.0   │ Reglas de lint               │
+  └──────────────────────────────┴──────────┴──────────────────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     4. APIs E INTEGRACIONES EXTERNAS                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ─── 4.1. SUPABASE ──────────────────────────────────────────────────────
+
+  Proyecto:     qquzifirnqodldyhbelv
+  URL:          https://qquzifirnqodldyhbelv.supabase.co
+
+  Servicios utilizados:
+    • Auth          → Registro/login email+password y Google OAuth
+    • Database      → PostgreSQL con 14+ tablas (ver sección 6)
+    • Row Level Security → Políticas de lectura; escritura admin vía EF
+    • Storage       → Bucket "products-images" para imágenes de productos
+    • Realtime      → Suscripciones en site_settings (ofertas flash on/off)
+    • Edge Functions → 7 funciones serverless en Deno (ver sección 5)
+
+  Autenticación:
+    • Email + contraseña (registro y login estándar)
+    • Google OAuth (redirect scheme: com.fashionstore.fashion_store)
+    • JWT gestionado internamente por supabase_flutter
+    • Sesión persistente entre reinicios de la app
+    • Verificación de admin mediante tabla admin_users
+
+
+  ─── 4.2. STRIPE ────────────────────────────────────────────────────────
+
+  Modo:         Test (pk_test_...)
+  Integración:  flutter_stripe — Payment Sheet nativo Android
+
+  Flujo de pago:
+    1. El usuario confirma el checkout en la app
+    2. La app llama a la Edge Function create-payment-intent
+       enviando: items del carrito, dirección de envío, código descuento
+    3. La Edge Function:
+       a) Valida stock disponible por talla
+       b) Calcula subtotal, envío, impuestos, descuento
+       c) Convierte a céntimos para Stripe (×100)
+       d) Crea PaymentIntent vía API Stripe
+       e) Crea el pedido en la tabla orders con estado 'pending_payment'
+       f) Devuelve clientSecret + ephemeralKey + customerId
+    4. La app inicializa Stripe Payment Sheet con esos datos
+    5. El usuario completa el pago en la UI nativa de Stripe
+    6. Tras el pago exitoso, la app llama a confirm-payment
+    7. La Edge Function confirm-payment:
+       a) Verifica el PaymentIntent con la API de Stripe
+       b) Actualiza status del pedido → 'processing'
+       c) Descuenta stock_by_size de cada producto
+       d) Envía email de confirmación vía send-order-email
+
+
+  ─── 4.3. BREVO (SENDINBLUE) — SERVICIO DE EMAIL ───────────────────────
+
+  Se utiliza Brevo para envío de emails transaccionales con dos métodos:
+
+  Método 1 — Edge Function (send-order-email):
+    • Confirmación de pedido (HTML con resumen de items)
+    • Notificación de cancelación
+    • Notificación de devolución (al usuario y al admin)
+
+  Método 2 — Cliente Dart directo (BrevoDartClient):
+    • Envío de facturas de venta con PDF adjunto (base64)
+    • Envío de facturas de abono con PDF adjunto (base64)
+    • Formulario de contacto
+
+  Los PDFs de factura se generan en el dispositivo usando el paquete
+  pdf de Dart y se adjuntan al email como base64.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║               5. EDGE FUNCTIONS (Supabase — Deno/TypeScript)                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Todas desplegadas con --no-verify-jwt (la autenticación se verifica
+  manualmente dentro de cada función usando el token del header).
+
+  ┌─────────────────────────┬──────────────────────────────────────────────┐
+  │ FUNCIÓN                 │ DESCRIPCIÓN                                  │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ create-payment-intent   │ Crear PaymentIntent en Stripe                │
+  │                         │ • Valida stock por talla                     │
+  │                         │ • Calcula totales (subtotal, envío, IVA,     │
+  │                         │   descuento por cupón)                       │
+  │                         │ • Convierte euros → céntimos para Stripe     │
+  │                         │ • Crea el pedido en tabla orders             │
+  │                         │ • Devuelve clientSecret + ephemeralKey       │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ confirm-payment         │ Confirmar pago tras Payment Sheet            │
+  │                         │ • Verifica PaymentIntent con API Stripe      │
+  │                         │ • Actualiza pedido → 'processing'            │
+  │                         │ • Descuenta stock_by_size                    │
+  │                         │ • Dispara email de confirmación              │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ send-order-email        │ Enviar emails transaccionales                │
+  │                         │ • Tipos: confirmation, cancellation,         │
+  │                         │   return_request, return_approved, etc.      │
+  │                         │ • Usa API de Brevo (Sendinblue)              │
+  │                         │ • Plantillas HTML dinámicas por tipo         │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ cancel-order            │ Cancelar pedido dentro de ventana 2h         │
+  │                         │ • Verifica propiedad del pedido (user_id)    │
+  │                         │ • Comprueba ventana de 2 horas               │
+  │                         │ • Restaura stock_by_size                     │
+  │                         │ • Actualiza status → 'cancelled'             │
+  │                         │ • Envía email de cancelación                 │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ manage-return           │ Gestionar devoluciones (usuario + admin)     │
+  │                         │ Acciones:                                    │
+  │                         │ • request  — Usuario solicita devolución     │
+  │                         │   (verifica propiedad, crea return record,   │
+  │                         │   actualiza pedido → 'return_requested',     │
+  │                         │   envía email)                               │
+  │                         │ • approve  — Admin aprueba devolución        │
+  │                         │ • reject   — Admin rechaza devolución        │
+  │                         │ • complete — Admin completa + reembolso      │
+  │                         │   Stripe (API refund)                        │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ manage-coupons          │ CRUD de códigos de descuento (admin)         │
+  │                         │ Acciones: create, update, delete, toggle     │
+  │                         │ • Usa service_role (bypass RLS)              │
+  │                         │ • Tabla: discount_codes                      │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ manage-products         │ Operaciones sobre productos (admin)          │
+  │                         │ Acciones: delete, toggle_active,             │
+  │                         │           toggle_featured                    │
+  │                         │ • delete: verifica que no existan            │
+  │                         │   order_items asociados antes de borrar      │
+  │                         │   (devuelve 409 si el producto fue vendido)  │
+  │                         │ • toggle_active: ocultar/mostrar producto    │
+  │                         │ • toggle_featured: destacar/quitar destacado │
+  │                         │ • Usa service_role (bypass RLS)              │
+  └─────────────────────────┴──────────────────────────────────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              6. BASE DE DATOS — TABLAS POSTGRESQL (Supabase)                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌───────────────────────┬────────────────────────────────────────────────┐
+  │ TABLA                 │ DESCRIPCIÓN                                    │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ profiles              │ Perfil de usuario (full_name, avatar_url,     │
+  │                       │ phone, address). Vinculado a auth.users       │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ admin_users           │ Tabla de administradores (user_id).           │
+  │                       │ Si un user_id existe aquí → es admin          │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ products              │ Catálogo de productos. Campos: name, slug,    │
+  │                       │ description, price, sale_price, stock,        │
+  │                       │ stock_by_size (JSONB), category_id, gender_id,│
+  │                       │ images[], sizes[], is_active, is_new,         │
+  │                       │ is_on_sale, is_sustainable, featured, color,  │
+  │                       │ material, care_instructions, sku, weight,     │
+  │                       │ popularity_score, sales_count, etc.           │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ categories            │ Categorías (id, name, slug, description,      │
+  │                       │ image_url)                                     │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ genders               │ Géneros: Mujer / Hombre (id, name, slug)     │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ product_colors        │ Relación productos ↔ colores                  │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ orders                │ Pedidos: order_number, user_id, email,        │
+  │                       │ shipping_* (6 campos dirección), subtotal,    │
+  │                       │ shipping_cost, tax, discount, total, status,  │
+  │                       │ payment_method, payment_status, payment_id,   │
+  │                       │ customer_notes, admin_notes, timestamps       │
+  │                       │ Estados: pending_payment, processing,         │
+  │                       │ shipped, delivered, cancelled,                │
+  │                       │ return_requested, return_approved,            │
+  │                       │ return_completed                              │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ order_items           │ Items de pedido: product_id, product_name,    │
+  │                       │ product_slug, product_sku, product_image,     │
+  │                       │ size, quantity, unit_price, total_price       │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ returns               │ Devoluciones: return_number (RET-YYYYMMDD-XX),│
+  │                       │ order_id, user_id, status, reason, items[],   │
+  │                       │ refund_amount, admin_notes, timestamps        │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ discount_codes        │ Cupones: code, type (percentage/fixed),       │
+  │                       │ value, min_purchase, max_uses, current_uses,  │
+  │                       │ is_active, valid_from, valid_until            │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ site_settings         │ Configuración global del sitio.               │
+  │                       │ Clave: flash_offers_enabled (boolean)         │
+  │                       │ Suscripción Supabase Realtime para on/off     │
+  │                       │ de ofertas flash en tiempo real               │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ flash_offers          │ Ofertas flash: product_id, discount, fechas   │
+  │                       │ de inicio/fin, activo, prioridad              │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ wishlists             │ Favoritos: user_id + product_id               │
+  ├───────────────────────┼────────────────────────────────────────────────┤
+  │ contact_messages      │ Mensajes del formulario de contacto           │
+  └───────────────────────┴────────────────────────────────────────────────┘
+
+  Row Level Security (RLS):
+    • La mayoría de tablas tienen RLS activado
+    • Las políticas permiten lectura pública para catálogo
+    • Escritura restringida solo al propio usuario (ej: wishlists, orders)
+    • Operaciones admin se hacen vía Edge Functions con service_role key
+      para bypass de RLS (no se puede usar RLS para admin directo)
+
+  Storage:
+    • Bucket: products-images (público con CDN)
+    • Las imágenes se comprimen con flutter_image_compress antes de subir
+    • Se suben vía Supabase Storage desde el panel admin
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                 7. PANTALLAS DE LA APLICACIÓN (30 screens)                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ─── 7.1. AUTENTICACIÓN (4 pantallas) ───────────────────────────────────
+
+  • LoginScreen              → Login con email/password + Google OAuth
+  • RegisterScreen           → Registro con validación de formulario
+  • SecurityScreen           → Cambio de contraseña, cierre de sesión
+  • ProfileScreen            → Datos del usuario, avatar, dirección
+
+  ─── 7.2. CATÁLOGO Y PRODUCTOS (5 pantallas) ───────────────────────────
+
+  • HomeScreen               → Página principal con banners, carruseles
+                                de novedades, ofertas flash (Realtime),
+                                categorías destacadas, productos populares
+  • CategoryExplorerScreen   → Explorador de categorías con grid visual
+  • ProductListScreen        → Listado filtrable (categoría, género,
+                                novedades, rebajas) con scroll infinito
+  • ProductDetailScreen      → Detalle con galería de imágenes, selector
+                                de talla, botón añadir al carrito, info
+                                del producto (material, cuidados, medidas)
+  • SearchScreen             → Búsqueda en tiempo real con sugerencias
+
+  ─── 7.3. CARRITO Y CHECKOUT (3 pantallas) ──────────────────────────────
+
+  • CartScreen               → Carrito con items, cantidades editables,
+                                validación de stock, resumen de totales
+  • CheckoutScreen           → Formulario de envío, cupón de descuento,
+                                resumen del pedido, botón "Pagar" que
+                                lanza Stripe Payment Sheet
+  • CheckoutSuccessScreen    → Pantalla de éxito post-pago con confetti
+                                y resumen del pedido confirmado
+
+  ─── 7.4. PEDIDOS Y DEVOLUCIONES (4 pantallas) ─────────────────────────
+
+  • OrdersScreen             → Lista de pedidos del usuario con filtros
+                                por estado y barra de búsqueda
+  • OrderDetailScreen        → Detalle del pedido: items, tracking,
+                                dirección, totales, botones de cancelar
+                                (ventana 2h) y solicitar devolución
+  • RefundRequestScreen      → Formulario de solicitud de devolución:
+                                selección de items, cantidades, motivo,
+                                cálculo automático del importe de reembolso
+  • ReturnsScreen            → Historial de devoluciones del usuario
+
+  ─── 7.5. FAVORITOS (1 pantalla) ────────────────────────────────────────
+
+  • FavoritesScreen          → Lista de productos guardados en wishlist
+
+  ─── 7.6. PÁGINAS ESTÁTICAS (6 pantallas) ──────────────────────────────
+
+  • ContactScreen            → Formulario de contacto (envía a Brevo)
+  • StaticPageScreen (FAQ)   → Preguntas frecuentes con expansión
+  • StaticPageScreen (Envíos) → Política de envíos
+  • StaticPageScreen (Devoluciones) → Política de devoluciones
+  • StaticPageScreen (Términos)    → Términos y condiciones
+  • StaticPageScreen (Privacidad)  → Política de privacidad
+
+  ─── 7.7. PANEL DE ADMINISTRACIÓN (7 pantallas) ────────────────────────
+
+  • AdminDashboardScreen     → Dashboard con KPIs: ventas totales, pedidos
+                                del mes, productos activos, ingresos.
+                                Gráficos con fl_chart (ventas por mes,
+                                distribución por categoría). Pedidos
+                                recientes y acciones rápidas.
+  • AdminProductsScreen      → Listado de productos con acciones:
+                                editar, ocultar/mostrar (toggle_active),
+                                destacar (toggle_featured), eliminar
+                                (con verificación de ventas previas)
+  • AdminProductFormScreen   → Formulario crear/editar producto con
+                                múltiples imágenes (cámara + galería),
+                                stock por talla, categoría, género, etc.
+  • AdminOrdersScreen        → Gestión de pedidos: cambio de estado,
+                                filtros, búsqueda, notas admin
+  • AdminReturnsScreen       → Gestión de devoluciones: aprobar, rechazar,
+                                completar (con reembolso Stripe)
+  • AdminFlashOffersScreen   → Gestión de ofertas flash: activar/desactivar
+                                interruptor global (Realtime), crear y
+                                gestionar ofertas individuales
+  • AdminCouponsScreen       → CRUD de cupones de descuento: crear, editar,
+                                activar/desactivar, eliminar. Tipos:
+                                porcentaje y cantidad fija. Configuración
+                                de compra mínima y usos máximos.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                8. NAVEGACIÓN (GoRouter — 30+ rutas)                         ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ─── 8.1. SHELL ROUTE (Bottom Navigation Bar) ───────────────────────────
+
+  ┌──────────────┬────────────────┬─────────────────────────────────────┐
+  │ RUTA         │ NOMBRE         │ PANTALLA                            │
+  ├──────────────┼────────────────┼─────────────────────────────────────┤
+  │ /            │ home           │ HomeScreen                          │
+  │ /productos   │ products       │ CategoryExplorerScreen              │
+  │ /search      │ search         │ SearchScreen                        │
+  │ /cart        │ cart           │ CartScreen                          │
+  │ /perfil      │ profile        │ ProfileScreen                       │
+  └──────────────┴────────────────┴─────────────────────────────────────┘
+
+  ─── 8.2. RUTAS DE AUTENTICACIÓN ────────────────────────────────────────
+
+  ┌──────────────┬────────────────┬─────────────────────────────────────┐
+  │ /login       │ login          │ LoginScreen                         │
+  │ /register    │ register       │ RegisterScreen                      │
+  └──────────────┴────────────────┴─────────────────────────────────────┘
+
+  ─── 8.3. RUTAS DE TIENDA ──────────────────────────────────────────────
+
+  ┌───────────────────────┬──────────────────┬──────────────────────────┐
+  │ /tienda               │ tienda           │ ProductListScreen         │
+  │ /novedades            │ novedades        │ ProductListScreen (isNew) │
+  │ /productos/:slug      │ product-detail   │ ProductDetailScreen       │
+  └───────────────────────┴──────────────────┴──────────────────────────┘
+
+  ─── 8.4. RUTAS DE CHECKOUT Y PEDIDOS ──────────────────────────────────
+
+  ┌───────────────────────────────────┬──────────────────┬──────────────┐
+  │ /checkout                         │ checkout         │ CheckoutScreen│
+  │ /checkout/exito                   │ checkout-success │ SuccessScreen │
+  │ /perfil/mis-pedidos               │ orders           │ OrdersScreen  │
+  │ /perfil/mis-pedidos/:id           │ order-detail     │ DetailScreen  │
+  │ /perfil/mis-pedidos/:id/reembolso │ refund-request   │ RefundScreen  │
+  │ /perfil/favoritos                 │ favorites        │ FavoritesScr  │
+  │ /perfil/seguridad                 │ security         │ SecurityScr   │
+  └───────────────────────────────────┴──────────────────┴──────────────┘
+
+  ─── 8.5. RUTAS ESTÁTICAS ──────────────────────────────────────────────
+
+  /contacto, /faq, /envios, /devoluciones, /terminos, /privacidad,
+  /sobre-nosotros
+
+  ─── 8.6. RUTAS DE ADMINISTRACIÓN ──────────────────────────────────────
+
+  ┌─────────────────────────────────┬─────────────────┬────────────────┐
+  │ /admin                          │ admin-dashboard │ DashboardScreen │
+  │ /admin/productos                │ admin-products  │ ProductsScreen  │
+  │ /admin/productos/nuevo          │ admin-prod-new  │ ProductForm     │
+  │ /admin/productos/:id/editar     │ admin-prod-edit │ ProductForm     │
+  │ /admin/pedidos                  │ admin-orders    │ AdminOrdersScr  │
+  │ /admin/pedidos/:id              │ admin-ord-det   │ OrderDetail     │
+  │ /admin/devoluciones             │ admin-returns   │ AdminReturnsScr │
+  │ /admin/flash-offers             │ admin-flash     │ FlashOffersScr  │
+  │ /admin/cupones                  │ admin-coupons   │ CouponsScreen   │
+  └─────────────────────────────────┴─────────────────┴────────────────┘
+
+  ─── 8.7. PROTECCIÓN DE RUTAS ──────────────────────────────────────────
+
+  • Rutas públicas: /, /login, /register, /productos, /search,
+    /tienda, /contacto, /faq, /envios, /devoluciones, /terminos,
+    /privacidad, /sobre-nosotros, /novedades, /productos/:slug
+  • Rutas autenticadas: Redirige a /login si no hay sesión activa
+  • Rutas admin: Verificación de tabla admin_users, redirige a / si
+    el usuario no es administrador
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              9. GESTIÓN DE ESTADO (Riverpod)                                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  La gestión de estado se realiza íntegramente con Riverpod.
+  No se usa setState para lógica de negocio.
+
+  ─── Providers principales: ─────────────────────────────────────────────
+
+  ┌──────────────────────────────┬────────────────────────────────────────┐
+  │ PROVIDER                     │ PROPÓSITO                              │
+  ├──────────────────────────────┼────────────────────────────────────────┤
+  │ supabaseProvider             │ Instancia global de SupabaseClient     │
+  │ authStateProvider            │ Stream del estado de autenticación     │
+  │ currentUserProvider          │ Usuario actual (UserModel)             │
+  │ isAdminProvider              │ Verifica admin_users (FutureProvider)  │
+  │ cartNotifierProvider         │ NotifierProvider — carrito (Hive)      │
+  │ productsProvider             │ FutureProvider — lista de productos    │
+  │ productDetailProvider        │ FutureProvider.family — por slug       │
+  │ categoriesProvider           │ FutureProvider — categorías            │
+  │ gendersProvider              │ FutureProvider — géneros               │
+  │ ordersProvider               │ FutureProvider — pedidos del usuario   │
+  │ orderDetailProvider          │ FutureProvider.family — detalle pedido │
+  │ wishlistProvider             │ FutureProvider — favoritos del usuario │
+  │ flashOffersEnabledProvider   │ StreamProvider — Realtime site_settings│
+  │ flashOffersProvider          │ FutureProvider — ofertas flash activas │
+  │ adminDashboardProvider       │ FutureProvider — KPIs del dashboard    │
+  │ adminProductsProvider        │ FutureProvider — productos (admin)     │
+  │ adminOrdersProvider          │ FutureProvider — pedidos (admin)       │
+  │ adminReturnsProvider         │ FutureProvider — devoluciones (admin)  │
+  │ couponsProvider              │ FutureProvider — cupones (admin)       │
+  │ searchResultsProvider        │ FutureProvider.family — búsqueda       │
+  │ couponValidationProvider     │ FutureProvider.family — validar cupón  │
+  └──────────────────────────────┴────────────────────────────────────────┘
+
+  Patrón de uso:
+    • ConsumerWidget / ConsumerStatefulWidget para acceder a providers
+    • ref.watch() para reactividad en build()
+    • ref.read() para acciones puntuales
+    • ref.invalidate() para forzar recarga de datos
+    • AsyncValue (.when) para manejar loading/error/data
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              10. MODELOS DE DATOS (Freezed + json_serializable)              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Todos los modelos usan Freezed para inmutabilidad y json_serializable
+  para serialización/deserialización JSON.
+
+  ┌──────────────────────┬───────────────────────────────────────────────┐
+  │ MODELO               │ CAMPOS PRINCIPALES                           │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ UserModel            │ id, email, fullName, avatarUrl, createdAt,   │
+  │                      │ isAdmin                                      │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ ProductModel         │ id, name, slug, description, price,          │
+  │                      │ salePrice, stock, stockBySize (Map),         │
+  │                      │ categoryId, genderId, images[], sizes[],     │
+  │                      │ availableSizes[], featured, isActive, isNew, │
+  │                      │ isOnSale, isSustainable, color, colorIds[],  │
+  │                      │ material, careInstructions, sku, weightGrams,│
+  │                      │ popularityScore, salesCount, metaTitle,      │
+  │                      │ metaDescription, sizeMeasurements,           │
+  │                      │ categories (embebido), genders (embebido)    │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ CategoryModel        │ id, name, slug, description, imageUrl        │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ GenderModel          │ id, name, slug                               │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ OrderModel           │ id, orderNumber, userId, customerEmail,      │
+  │                      │ shippingName/Address/City/State/PostalCode/  │
+  │                      │ Country, subtotal, shippingCost, tax,        │
+  │                      │ discount, total, status, paymentMethod,      │
+  │                      │ paymentStatus, paymentId, customerNotes,     │
+  │                      │ adminNotes, createdAt, updatedAt,            │
+  │                      │ orderItems[]                                 │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ OrderItemModel       │ id, orderId, productId, productName,         │
+  │                      │ productSlug, productSku, productImage,       │
+  │                      │ size, quantity, unitPrice, totalPrice         │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ CartItemModel        │ productId, productName, productSlug,         │
+  │                      │ productImage, size, quantity, unitPrice,     │
+  │                      │ maxStock                                     │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ CartState            │ items: Map<String, CartItemModel>,           │
+  │                      │ discountCode                                 │
+  ├──────────────────────┼───────────────────────────────────────────────┤
+  │ Failure (Union)      │ Network, Auth, Business, Cache, Unknown      │
+  │                      │ Usado con Either<Failure, T> (fpdart)        │
+  └──────────────────────┴───────────────────────────────────────────────┘
+
+  Generación de código:
+    $ dart run build_runner build --delete-conflicting-outputs
+  Genera archivos .freezed.dart y .g.dart para cada modelo.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              11. MANEJO DE ERRORES                                          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Se utiliza el tipo Either<Failure, T> del paquete fpdart para
+  manejar errores de forma funcional sin excepciones no controladas.
+
+  Tipo Failure (union con Freezed):
+    • Failure.network(message)   — Error de conectividad
+    • Failure.auth(message)      — Error de autenticación
+    • Failure.business(message)  — Error de lógica de negocio
+    • Failure.cache(message)     — Error de caché local
+    • Failure.unknown(message)   — Error no clasificado
+
+  Ejemplo de uso en repositorio:
+    Future<Either<Failure, List<Product>>> getProducts() async {
+      try {
+        final data = await supabase.from('products').select();
+        return Right(data.map(Product.fromJson).toList());
+      } on SocketException {
+        return Left(Failure.network('Sin conexión'));
+      } catch (e) {
+        return Left(Failure.unknown(e.toString()));
+      }
+    }
+
+  Ejemplo de uso en UI:
+    result.fold(
+      (failure) => showSnackBar(failure.message),
+      (data) => setState(() => products = data),
+    );
+
+  ErrorWidget global:
+    En main.dart se configura ErrorWidget.builder para mostrar un
+    widget de error personalizado en lugar del rojo de Flutter cuando
+    hay errores de construcción de widgets.
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              12. SERVICIO HTTP (ApiClient)                                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Clase singleton ApiClient basada en dio que centraliza todas las
+  llamadas HTTP de la aplicación.
+
+  Funcionalidades:
+    • Inyección automática de JWT en headers (Authorization: Bearer)
+    • Método postFunction(name, body) para llamar a Edge Functions
+      de Supabase sin construir URLs manualmente
+    • Método post/get/put/delete genéricos
+    • Manejo centralizado de errores con ApiException
+    • Timeout configurable
+
+  Uso típico:
+    final response = await ApiClient.instance.postFunction(
+      'manage-products',
+      body: {'action': 'delete', 'productId': id},
+    );
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              13. CONFIGURACIÓN ANDROID                                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────┬──────────────────────────────────────────────┐
+  │ CAMPO                   │ VALOR                                        │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ applicationId           │ com.fashionstore.fashion_store               │
+  │ namespace               │ com.fashionstore.fashion_store               │
+  │ minSdk                  │ flutter.minSdkVersion (típicamente 21)       │
+  │ targetSdk               │ 34 (Android 14)                              │
+  │ compileSdk              │ flutter.compileSdkVersion                    │
+  │ versionCode             │ 1                                            │
+  │ versionName             │ 1.0.0                                        │
+  │ multiDexEnabled         │ true                                         │
+  │ Java/Kotlin             │ Java 17                                      │
+  │ Release build           │ isMinifyEnabled = true                       │
+  │                         │ isShrinkResources = true                     │
+  │                         │ ProGuard habilitado                          │
+  │ Icono launcher          │ Adaptive icon, fondo #0A0A0A                 │
+  │ Plataforma única        │ Solo Android (no iOS)                        │
+  └─────────────────────────┴──────────────────────────────────────────────┘
+
+  Permisos Android (AndroidManifest.xml):
+    • INTERNET — Acceso a red
+    • CAMERA — Tomar fotos de productos (admin)
+    • READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE — Galería
+    • ACCESS_NETWORK_STATE — Verificar conectividad
+
+  Deep Links:
+    • Scheme: com.fashionstore.fashion_store (para Google OAuth callback)
+
+  flutter_launcher_icons (pubspec.yaml):
+    android: true
+    ios: false
+    image_path: "assets/images/app_icon.png"
+    adaptive_icon_background: "#0A0A0A"
+    adaptive_icon_foreground: "assets/images/app_icon.png"
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              14. VARIABLES DE ENTORNO Y CONFIGURACIÓN                       ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Las variables de configuración se definen en:
+  lib/shared/config/constants.dart
+
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │ class AppConstants {                                                    │
+  │   static const supabaseUrl =                                           │
+  │     'https://qquzifirnqodldyhbelv.supabase.co';                        │
+  │                                                                        │
+  │   static const supabaseAnonKey = '...'; // Clave pública anon         │
+  │                                                                        │
+  │   static const stripePublishableKey = 'pk_test_...'; // Stripe test   │
+  │ }                                                                      │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  Edge Functions (variables de entorno en Supabase Dashboard):
+    • SUPABASE_URL — URL del proyecto
+    • SUPABASE_ANON_KEY — Clave anónima
+    • SUPABASE_SERVICE_ROLE_KEY — Clave de servicio (operaciones admin)
+    • STRIPE_SECRET_KEY — Clave secreta de Stripe
+    • BREVO_API_KEY — Clave API de Brevo para emails
+
+  Inicialización en main.dart:
+    1. WidgetsFlutterBinding.ensureInitialized()
+    2. Supabase.initialize(url, anonKey)
+    3. Stripe.publishableKey = stripePublishableKey
+    4. Hive.initFlutter() + abrir box del carrito
+    5. ErrorWidget.builder personalizado
+    6. runApp(ProviderScope(child: FashionStoreApp()))
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              15. FLUJOS DE NEGOCIO PRINCIPALES                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ─── 15.1. FLUJO DE COMPRA ──────────────────────────────────────────────
+
+    1. Usuario navega catálogo → selecciona producto → elige talla
+    2. Añade al carrito (Hive local) — validación stock_by_size
+    3. Va al carrito → revisa items → procede al checkout
+    4. Formulario de envío + cupón opcional → "Pagar"
+    5. App llama a create-payment-intent (Edge Function)
+       → Valida stock → Calcula totales → Crea pedido → PaymentIntent
+    6. Stripe Payment Sheet se muestra al usuario
+    7. Usuario completa el pago (tarjeta test)
+    8. App llama a confirm-payment (Edge Function)
+       → Verifica pago → Actualiza pedido → Descuenta stock → Email
+    9. Pantalla de éxito con resumen del pedido
+   10. Se genera factura PDF y se envía por email (Brevo)
+
+  ─── 15.2. FLUJO DE CANCELACIÓN ─────────────────────────────────────────
+
+    1. Usuario va a detalle del pedido (< 2 horas desde creación)
+    2. Pulsa "Cancelar pedido"
+    3. App llama a cancel-order (Edge Function)
+       → Verifica propiedad → Verifica ventana 2h → Restaura stock
+       → Actualiza status → Envía email de cancelación
+    4. El pedido aparece como "Cancelado"
+
+  ─── 15.3. FLUJO DE DEVOLUCIÓN ──────────────────────────────────────────
+
+    1. Usuario va a detalle del pedido (< 14 días desde creación)
+    2. Pulsa "Solicitar devolución"
+    3. Selecciona items, cantidades, escribe motivo
+    4. App llama a manage-return con action: 'request' (Edge Function)
+       → Verifica propiedad → Comprueba estado del pedido
+       → Crea registro en tabla returns con número RET-YYYYMMDD-XX
+       → Actualiza pedido → return_requested → Email notificación
+    5. Admin revisa en AdminReturnsScreen
+    6. Admin puede aprobar (approve) → return_approved
+    7. Admin completa (complete) → Reembolso Stripe API → return_completed
+       O rechaza (reject) → return_rejected
+
+  ─── 15.4. FLUJO DE OFERTAS FLASH (Realtime) ───────────────────────────
+
+    1. Admin activa interruptor en AdminFlashOffersScreen
+    2. Se actualiza site_settings.flash_offers_enabled = true
+    3. Supabase Realtime notifica a todos los clientes conectados
+    4. flashOffersEnabledProvider (StreamProvider) recibe el cambio
+    5. HomeScreen muestra/oculta la sección de ofertas flash
+       SIN necesidad de recargar la pantalla
+
+  ─── 15.5. FLUJO DE GESTIÓN DE PRODUCTOS (Admin) ───────────────────────
+
+    1. Admin crea producto en AdminProductFormScreen:
+       → Rellena datos (nombre, precio, tallas, stock, categoría...)
+       → Toma fotos con cámara o selecciona de galería
+       → Las imágenes se comprimen con flutter_image_compress
+       → Se suben a Supabase Storage (bucket products-images)
+       → Se inserta registro en tabla products
+    2. Admin puede editar, ocultar (toggle_active), destacar
+       (toggle_featured) o eliminar productos
+    3. La eliminación verifica que no existan order_items asociados
+       (si el producto se vendió alguna vez, no se puede borrar — 409)
+    4. Todas las operaciones admin usan Edge Function manage-products
+       con service_role (bypass RLS)
+
+  ─── 15.6. FLUJO DE CUPONES (Admin) ────────────────────────────────────
+
+    1. Admin crea cupón en AdminCouponsScreen:
+       → Código, tipo (porcentaje/fijo), valor, compra mínima,
+         usos máximos, fechas de validez
+    2. Se llama a manage-coupons con action: 'create'
+    3. Admin puede editar (update), activar/desactivar (toggle) o
+       eliminar (delete) cupones
+    4. En el checkout, el usuario puede introducir un código de cupón
+       → Se valida con couponValidationProvider
+       → Se aplica descuento al total
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              16. DISEÑO Y EXPERIENCIA DE USUARIO                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Tema visual:
+    • Tema oscuro exclusivo (no hay modo claro)
+    • Fondo principal: #0A0A0A (negro profundo)
+    • Tipografía headings: Playfair Display (serif, elegante)
+    • Tipografía body: Lato (sans-serif, legible)
+    • Acentos: Tonos dorados/ámbar para CTAs y elementos destacados
+
+  Animaciones y transiciones:
+    • Hero Animations entre lista de productos y detalle
+    • Transición slide + fade para checkout
+    • Transición scale + fade para pantalla de éxito
+    • Shimmer loading como placeholder durante la carga
+    • flutter_animate para animaciones declarativas en widgets
+
+  Componentes UI destacados:
+    • Bottom Navigation Bar con 5 tabs (Home, Categorías, Buscar,
+      Carrito, Perfil)
+    • Carruseles con carousel_slider + smooth_page_indicator
+    • Grid de productos adaptativo
+    • Cards con sombras y bordes redondeados premium
+    • Pull-to-refresh en listas
+    • SnackBars para feedback de acciones
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              17. SEGURIDAD                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  • JWT gestionado automáticamente por supabase_flutter
+  • Row Level Security en todas las tablas sensibles
+  • service_role key SOLO en Edge Functions (nunca en la app)
+  • Verificación de admin mediante tabla admin_users (server-side)
+  • Stripe en modo test (claves pk_test_ / sk_test_)
+  • Las Edge Functions verifican autenticación manualmente:
+    → Se extrae el token del header Authorization
+    → Se crea un userClient con el token del usuario
+    → Se verifica getUser() con el token
+    → Para acciones admin: se consulta admin_users con service_role
+  • Todas las Edge Functions desplegadas con --no-verify-jwt
+    (la verificación JWT es manual dentro de cada función para
+    poder usar tanto peticiones autenticadas como anónimas)
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              18. GENERACIÓN DE PDFs (Facturas)                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  Se generan PDFs de factura directamente en el dispositivo usando
+  el paquete 'pdf' de Dart.
+
+  Tipos de factura:
+    • Factura de venta — Se genera tras confirmar el pedido
+    • Factura de abono — Se genera tras completar una devolución
+
+  Contenido del PDF:
+    • Datos de la empresa (FashionStore)
+    • Datos del cliente (nombre, dirección, email)
+    • Número de pedido / devolución
+    • Tabla con items (producto, talla, cantidad, precio)
+    • Desglose: subtotal, envío, IVA, descuento, total
+    • Fecha de emisión
+
+  Los PDFs se convierten a base64 y se adjuntan a los emails
+  enviados a través de BrevoDartClient (Brevo API directa desde Dart).
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              19. RESUMEN DE ARCHIVOS DEL PROYECTO                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  ┌─────────────────────────┬──────────────────────────────────────────────┐
+  │ TIPO                    │ CANTIDAD                                     │
+  ├─────────────────────────┼──────────────────────────────────────────────┤
+  │ Archivos Dart (.dart)   │ 94                                           │
+  │ Pantallas (screens)     │ 30                                           │
+  │ Widgets reutilizables   │ 40+                                          │
+  │ Modelos Freezed         │ 8+ (con .freezed.dart y .g.dart generados)  │
+  │ Providers Riverpod      │ 20+                                          │
+  │ Repositorios            │ 8+ (auth, products, orders, cart, etc.)     │
+  │ Servicios compartidos   │ 3 (ApiClient, BrevoDartClient, Supabase)    │
+  │ Edge Functions (Deno)   │ 7                                            │
+  │ Tablas PostgreSQL       │ 14+                                          │
+  │ Rutas GoRouter          │ 30+                                          │
+  └─────────────────────────┴──────────────────────────────────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║              20. COMANDOS ÚTILES PARA DESARROLLO                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+  # Ejecutar la app en modo debug
+  flutter run
+
+  # Generar código (Freezed, json_serializable, Riverpod)
+  dart run build_runner build --delete-conflicting-outputs
+
+  # Generar iconos de la app
+  dart run flutter_launcher_icons
+
+  # Desplegar una Edge Function
+  npx supabase functions deploy <nombre-funcion> --no-verify-jwt
+
+  # Construir APK release
+  flutter build apk --release
+
+  # Construir App Bundle (para Play Store)
+  flutter build appbundle --release
+
+  # Ver logs de Edge Functions
+  npx supabase functions logs <nombre-funcion>
+
+
+================================================================================
+  FIN DE LA FICHA TÉCNICA
+  APLICACIÓN ANDROID — FASHION STORE (Flutter + Supabase + Stripe)
+  94 archivos Dart | 30 pantallas | 7 Edge Functions | 14+ tablas DB
+  Julio 2025
+================================================================================
+
