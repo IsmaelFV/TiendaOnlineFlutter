@@ -11,15 +11,44 @@ final reviewsProvider = FutureProvider.family<List<ReviewData>, String>((
   ref,
   productId,
 ) async {
-  final response = await Supabase.instance.client
+  final supabase = Supabase.instance.client;
+  final response = await supabase
       .from('reviews')
       .select()
       .eq('product_id', productId)
       .order('created_at', ascending: false);
 
-  return (response as List)
-      .map((json) => ReviewData.fromJson(json as Map<String, dynamic>))
-      .toList();
+  final reviews = (response as List).cast<Map<String, dynamic>>();
+
+  // Obtener nombres de usuario desde profiles
+  final userIds = reviews.map((r) => r['user_id'] as String).toSet().toList();
+  final userNames = <String, String>{};
+  if (userIds.isNotEmpty) {
+    try {
+      final profiles = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .inFilter('id', userIds);
+      for (final p in (profiles as List)) {
+        final map = p as Map<String, dynamic>;
+        userNames[map['id'] as String] =
+            map['full_name'] as String? ?? 'Usuario';
+      }
+    } catch (_) {}
+  }
+
+  return reviews.map((json) {
+    final userId = json['user_id'] as String;
+    return ReviewData(
+      id: json['id'] as String,
+      productId: json['product_id'] as String,
+      userId: userId,
+      userName: userNames[userId],
+      rating: json['rating'] as int? ?? 0,
+      comment: json['comment'] as String?,
+      createdAt: json['created_at'] as String?,
+    );
+  }).toList();
 });
 
 /// Modelo de review simple
@@ -41,16 +70,6 @@ class ReviewData {
     this.comment,
     this.createdAt,
   });
-
-  factory ReviewData.fromJson(Map<String, dynamic> json) => ReviewData(
-    id: json['id'] as String,
-    productId: json['product_id'] as String,
-    userId: json['user_id'] as String,
-    userName: json['user_name'] as String?,
-    rating: json['rating'] as int? ?? 0,
-    comment: json['comment'] as String?,
-    createdAt: json['created_at'] as String?,
-  );
 }
 
 class ReviewsSection extends ConsumerStatefulWidget {
@@ -307,7 +326,6 @@ class _ReviewsSectionState extends ConsumerState<ReviewsSection> {
       await Supabase.instance.client.from('reviews').insert({
         'product_id': widget.productId,
         'user_id': user.id,
-        'user_name': user.userMetadata?['full_name'] ?? 'Anónimo',
         'rating': _selectedRating,
         'comment': _commentController.text.isNotEmpty
             ? _commentController.text

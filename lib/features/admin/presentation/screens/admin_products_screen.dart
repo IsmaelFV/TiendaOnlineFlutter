@@ -146,7 +146,9 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen>
                 ),
                 onPressed: () {
                   HapticFeedback.mediumImpact();
-                  ref.invalidate(productsProvider(const ProductsFilter()));
+                  ref.invalidate(
+                    productsProvider(const ProductsFilter(limit: 500)),
+                  );
                 },
               ),
               const SizedBox(width: 8),
@@ -656,7 +658,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen>
               'data': {'is_active': !product.isActive},
             },
           );
-          ref.invalidate(productsProvider(const ProductsFilter()));
+          ref.invalidate(productsProvider(const ProductsFilter(limit: 500)));
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -709,7 +711,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen>
               'data': {'featured': !product.featured},
             },
           );
-          ref.invalidate(productsProvider(const ProductsFilter()));
+          ref.invalidate(productsProvider(const ProductsFilter(limit: 500)));
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -787,7 +789,7 @@ class _AdminProductsScreenState extends ConsumerState<AdminProductsScreen>
               'manage-products',
               body: {'action': 'delete', 'id': product.id},
             );
-            ref.invalidate(productsProvider(const ProductsFilter()));
+            ref.invalidate(productsProvider(const ProductsFilter(limit: 500)));
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

@@ -41,7 +41,7 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
       .where((o) => o['status'] != 'cancelled' && o['status'] != 'refunded')
       .fold<double>(
         0,
-        (sum, o) => sum + ((o['total'] as num?)?.toDouble() ?? 0) / 100,
+        (sum, o) => sum + ((o['total'] as num?)?.toDouble() ?? 0),
       );
 
   final pendingOrders = orders.where((o) => o['status'] == 'pending').length;
@@ -90,14 +90,13 @@ final adminStatsProvider = FutureProvider<AdminStats>((ref) async {
     if (createdAt != null && now.difference(createdAt).inDays < 7) {
       final key = '${createdAt.day}/${createdAt.month}';
       salesByDay[key] =
-          (salesByDay[key] ?? 0) +
-          ((order['total'] as num?)?.toDouble() ?? 0) / 100;
+          (salesByDay[key] ?? 0) + ((order['total'] as num?)?.toDouble() ?? 0);
       ordersByDay[key] = (ordersByDay[key] ?? 0) + 1;
 
       if (createdAt.day == now.day &&
           createdAt.month == now.month &&
           createdAt.year == now.year) {
-        todayRevenue += ((order['total'] as num?)?.toDouble() ?? 0) / 100;
+        todayRevenue += ((order['total'] as num?)?.toDouble() ?? 0);
         todayOrders++;
       }
     }

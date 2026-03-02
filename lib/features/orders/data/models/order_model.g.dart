@@ -20,11 +20,11 @@ _$OrderModelImpl _$$OrderModelImplFromJson(Map<String, dynamic> json) =>
       shippingState: json['shipping_state'] as String?,
       shippingPostalCode: json['shipping_postal_code'] as String?,
       shippingCountry: json['shipping_country'] as String?,
-      subtotal: ((json['subtotal'] as num?)?.toDouble() ?? 0) / 100,
-      shippingCost: ((json['shipping_cost'] as num?)?.toDouble() ?? 0) / 100,
-      tax: ((json['tax'] as num?)?.toDouble() ?? 0) / 100,
-      discount: ((json['discount'] as num?)?.toDouble() ?? 0) / 100,
-      total: ((json['total'] as num?)?.toDouble() ?? 0) / 100,
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
+      shippingCost: (json['shipping_cost'] as num?)?.toDouble() ?? 0,
+      tax: (json['tax'] as num?)?.toDouble() ?? 0,
+      discount: (json['discount'] as num?)?.toDouble() ?? 0,
+      total: (json['total'] as num?)?.toDouble() ?? 0,
       status: json['status'] as String? ?? 'pending',
       paymentMethod: json['payment_method'] as String?,
       paymentStatus: json['payment_status'] as String?,
@@ -82,8 +82,8 @@ _$OrderItemModelImpl _$$OrderItemModelImplFromJson(Map<String, dynamic> json) =>
       size: json['size'] as String?,
       color: json['color'] as String?,
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
-      price: ((json['price'] as num?)?.toDouble() ?? 0) / 100,
-      subtotal: ((json['subtotal'] as num?)?.toDouble() ?? 0) / 100,
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+      subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0,
     );
 
 Map<String, dynamic> _$$OrderItemModelImplToJson(
